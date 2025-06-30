@@ -1,8 +1,6 @@
 from fastapi import BackgroundTasks, FastAPI
 from celery import Celery
-
-import time
-
+from tasks import call_background_task
 
 app = FastAPI()
 
@@ -13,14 +11,17 @@ celery = Celery(
     broker_connection_retry_on_startup=True
 )
 
-@celery.task()
-def call_background_task(message):
-    time.sleep(10)
-    print(f"Background Task called!")
-    print(message)
-
 
 @app.get("/")
 async def hello_world(message: str):
-    call_background_task.delay(message)
+    call_background_task.apply_async(args=[message], expires=3600)
     return {"message": "Hello World"}
+
+
+celery.conf.beat_schedule = {
+    'run-me-background-task': {
+        'task': 'tasks.call_background_task',
+        'schedule': 60.0,
+        'args': ('Test text message',)
+    }
+}
